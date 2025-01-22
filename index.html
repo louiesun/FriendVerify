@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+  <meta name='description' content="Web app to check fiends against others">
+  <meta name='keywords' content="crypt,cryption,censor,china,gfw">
+
+  <!-- web app -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- theme color-->
+  <meta name="theme-color" content="#39c5bb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#39c5bb" media="(prefers-color-scheme: dark)">
+
+  <!-- fav icon -->
+  <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
+
+  <!-- apple-touch-icon -->
+  <link rel="/favicon.svg" type="image/svg+xml">
+
+  <title>Online Dating Identity Verification</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      background-color: #39c5bb;
+    }
+  .search-box {
+      margin-bottom: 10px;
+    }
+  </style>
+
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+  <select id="menu">
+    <option value="create-identity">Create Personal Identity</option>
+    <option value="create-friend-identity">Create Friend's Identity</option>
+    <option value="show-identity">Show Your Identity</option>
+    <option value="verify-friend-identity">Verify Friend's Identity</option>
+    <option value="export-import">Export/Import Identities</option>
+  </select>
+  <div id="create-identity">
+    <h2>Create Personal Identity</h2>
+    <input type="text" id="identity-note" placeholder="Add a note">
+    <br />
+    <button onclick="createIdentity()">Create</button>
+  </div>
+  <div id="create-friend-identity" hidden="true">
+    <h2>Create Friend's Identity</h2>
+    <input type="text" id="friend-public-key" placeholder="Friend's Public Key">
+    <br />
+    <input type="text" id="friend-description" placeholder="Friend's Description">
+    <br />
+    <button onclick="createFriendIdentity()">Save</button>
+  </div>
+  <div id="show-identity" hidden="true">
+    <h2>Show Your Identity</h2>
+    <select id="personal-identity-select"></select>
+    <br />
+    <input type="text" id="encrypt-content" placeholder="Enter content to encrypt">
+    <br />
+    <button onclick="encryptContent()">Encrypt</button>
+    <br />
+    <textarea id="public-key" readonly></textarea>
+    <br />
+    <textarea id="encrypted-output" readonly></textarea>
+  </div>
+  <div id="verify-friend-identity" hidden="true">
+    <h2>Verify Friend's Identity</h2>
+    <select id="friend-identity-select"></select>
+    <br />
+    <input type="text" id="encrypted-content" placeholder="Enter encrypted content">
+    <br />
+    <input type="text" id="plaintext" placeholder="Enter plaintext for comparison">
+    <br />
+    <button onclick="verifyFriendIdentity()">Verify</button>
+    <br />
+    <p id="verification-result"></p>
+  </div>
+  <div id="export-import" hidden="true">
+    <h2>Export/Import Identities</h2>
+    <button onclick="exportPersonalIdentities()">Export Personal Identities</button>
+    <button onclick="exportFriendIdentities()">Export Friend Identities</button>
+    <br />
+    <input type="file" id="import-personal-file" onchange="importPersonalIdentities(event)">
+    <button onclick="importPersonalIdentitiesFromInput()">Import Personal Identities</button>
+    <br />
+    <input type="file" id="import-friend-file" onchange="importFriendIdentities(event)">
+    <br />
+    <button onclick="importFriendIdentitiesFromInput()">Import Friend Identities</button>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.6.1/elliptic.min.js"></script>
+  <script>
+    const ec = new elliptic.ec('secp256k1');
+
+    // 创建个人身份
+    function createIdentity() {
+      const keyPair = ec.genKeyPair();
+      const privateKey = keyPair.getPrivate('hex');
+      const publicKey = keyPair.getPublic('hex');
+      const note = document.getElementById('identity-note').value;
+      const identityId = `personal_${Date.now()}`;
+      localStorage.setItem(identityId, JSON.stringify({ privateKey, publicKey, note }));
+      updatePersonalIdentitySelect();
+    }
+
+    // 创建网友身份
+    function createFriendIdentity() {
+      const publicKey = document.getElementById('friend-public-key').value;
+      const description = document.getElementById('friend-description').value;
+      const friendId = `friend_${Date.now()}`;
+      localStorage.setItem(friendId, JSON.stringify({ publicKey, description }));
+      updateFriendIdentitySelect();
+    }
+
+    // 更新个人身份下拉框
+    function updatePersonalIdentitySelect() {
+      const select = document.getElementById('personal-identity-select');
+      select.innerHTML = '';
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('personal_')) {
+          const identity = JSON.parse(localStorage.getItem(key));
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = `${key}: ${identity.note}`;
+          select.appendChild(option);
+        }
+      }
+    }
+
+    // 更新网友身份下拉框
+    function updateFriendIdentitySelect() {
+      const select = document.getElementById('friend-identity-select');
+      select.innerHTML = '';
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('friend_')) {
+          const identity = JSON.parse(localStorage.getItem(key));
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = `${key}: ${identity.description}`;
+          select.appendChild(option);
+        }
+      }
+    }
+
+    // 展示自己身份，加密内容
+    function encryptContent() {
+      const select = document.getElementById('personal-identity-select');
+      const selectedKey = select.value;
+      if (!selectedKey) {
+        alert('No personal identity selected. Please select one first.');
+        return;
+      }
+      const identity = JSON.parse(localStorage.getItem(selectedKey));
+      const content = document.getElementById('encrypt-content').value;
+      const keyPair = ec.keyFromPrivate(identity.privateKey);
+      const encrypted = keyPair.sign(content);
+      document.getElementById("public-key").value = ec.keyFromPublic(identity.publicKey, 'hex').getPublic('hex');
+      document.getElementById('encrypted-output').value = encrypted.toDER('hex');
+    }
+
+    // 确认网友身份，解密内容并验证
+    function verifyFriendIdentity() {
+      const select = document.getElementById('friend-identity-select');
+      const selectedKey = select.value;
+      if (!selectedKey) {
+        alert('No friend identity selected. Please select one first.');
+        return;
+      }
+      const friend = JSON.parse(localStorage.getItem(selectedKey));
+      const encryptedContent = document.getElementById('encrypted-content').value;
+      const plaintext = document.getElementById('plaintext').value;
+      const publicKey = ec.keyFromPublic(friend.publicKey, 'hex');
+      const signature = encryptedContent;
+      const verified = publicKey.verify(plaintext, signature);
+      document.getElementById('verification-result').innerText = verified? 'Verified' : 'Not Verified';
+    }
+
+    // 导出个人身份
+    function exportPersonalIdentities() {
+      const personalIdentities = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('personal_')) {
+          personalIdentities[key] = JSON.parse(localStorage.getItem(key));
+        }
+      }
+      const json = JSON.stringify(personalIdentities);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'personal_identities.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // 导入个人身份
+    function importPersonalIdentities(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const identities = JSON.parse(e.target.result);
+          for (const key in identities) {
+            localStorage.setItem(key, JSON.parse(identities[key]));
+          }
+          updatePersonalIdentitySelect();
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    // 从文件输入元素导入个人身份
+    function importPersonalIdentitiesFromInput() {
+      document.getElementById('import-personal-file').click();
+    }
+
+    // 导出网友身份
+    function exportFriendIdentities() {
+      const friendIdentities = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('friend_')) {
+          friendIdentities[key] = JSON.parse(localStorage.getItem(key));
+        }
+      }
+      const json = JSON.stringify(friendIdentities);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'friend_identities.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // 导入网友身份
+    function importFriendIdentities(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const identities = JSON.parse(e.target.result);
+          for (const key in identities) {
+            localStorage.setItem(key, JSON.parse(identities[key]));
+          }
+          updateFriendIdentitySelect();
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    // 从文件输入元素导入网友身份
+    function importFriendIdentitiesFromInput() {
+      document.getElementById('import-friend-file').click();
+    }
+
+    document.getElementById('menu').addEventListener('change', function () {
+      const selectedOption = this.value;
+      document.getElementById('create-identity').hidden = true;
+      document.getElementById('create-friend-identity').hidden = true;
+      document.getElementById('show-identity').hidden = true;
+      document.getElementById('verify-friend-identity').hidden = true;
+      document.getElementById('export-import').hidden = true;
+      document.getElementById(selectedOption).hidden = false;
+    });
+
+    // 初始化下拉框
+    updatePersonalIdentitySelect();
+    updateFriendIdentitySelect();
+  </script>
+</body>
+
+</html>
