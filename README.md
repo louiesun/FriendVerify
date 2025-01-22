@@ -1,3 +1,3 @@
-# PWA-bilibili
+# web friend verify
 
-Installable shortcut for bilibili.
+Just too simple.
