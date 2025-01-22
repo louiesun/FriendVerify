@@ -31,7 +31,8 @@
       flex-direction: column;
       background-color: #39c5bb;
     }
-  .search-box {
+
+   .search-box {
       margin-bottom: 10px;
     }
   </style>
@@ -111,15 +112,22 @@
       const identityId = `personal_${Date.now()}`;
       localStorage.setItem(identityId, JSON.stringify({ privateKey, publicKey, note }));
       updatePersonalIdentitySelect();
+      alert("success")
     }
 
     // 创建网友身份
     function createFriendIdentity() {
-      const publicKey = document.getElementById('friend-public-key').value;
-      const description = document.getElementById('friend-description').value;
-      const friendId = `friend_${Date.now()}`;
-      localStorage.setItem(friendId, JSON.stringify({ publicKey, description }));
-      updateFriendIdentitySelect();
+      try {
+        const publicKey = document.getElementById('friend-public-key').value;
+        const description = document.getElementById('friend-description').value;
+        const friendId = `friend_${Date.now()}`;
+        localStorage.setItem(friendId, JSON.stringify({ publicKey, description }));
+        updateFriendIdentitySelect();
+        alert("success")
+      }
+      catch (error) {
+        alert(error)
+      }
     }
 
     // 更新个人身份下拉框
@@ -178,13 +186,18 @@
         alert('No friend identity selected. Please select one first.');
         return;
       }
-      const friend = JSON.parse(localStorage.getItem(selectedKey));
-      const encryptedContent = document.getElementById('encrypted-content').value;
-      const plaintext = document.getElementById('plaintext').value;
-      const publicKey = ec.keyFromPublic(friend.publicKey, 'hex');
-      const signature = encryptedContent;
-      const verified = publicKey.verify(plaintext, signature);
-      document.getElementById('verification-result').innerText = verified? 'Verified' : 'Not Verified';
+      try {
+        const friend = JSON.parse(localStorage.getItem(selectedKey));
+        const encryptedContent = document.getElementById('encrypted-content').value;
+        const plaintext = document.getElementById('plaintext').value;
+        const publicKey = ec.keyFromPublic(friend.publicKey, 'hex');
+        const signature = encryptedContent;
+        const verified = publicKey.verify(plaintext, signature);
+        document.getElementById('verification-result').innerText = verified? 'Verified' : 'Not Verified';
+      }
+      catch (error) {
+        document.getElementById('verification-result').innerText = error
+      }
     }
 
     // 导出个人身份
@@ -214,7 +227,7 @@
         reader.onload = function (e) {
           const identities = JSON.parse(e.target.result);
           for (const key in identities) {
-            localStorage.setItem(key, JSON.parse(identities[key]));
+            localStorage.setItem(key, JSON.stringify(identities[key]));
           }
           updatePersonalIdentitySelect();
         };
@@ -254,7 +267,7 @@
         reader.onload = function (e) {
           const identities = JSON.parse(e.target.result);
           for (const key in identities) {
-            localStorage.setItem(key, JSON.parse(identities[key]));
+            localStorage.setItem(key, JSON.stringify(identities[key]));
           }
           updateFriendIdentitySelect();
         };
